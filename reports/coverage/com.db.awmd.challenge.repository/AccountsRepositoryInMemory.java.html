@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AccountsRepositoryInMemory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">account-services</a> &gt; <a href="index.source.html" class="el_package">com.db.awmd.challenge.repository</a> &gt; <span class="el_source">AccountsRepositoryInMemory.java</span></div><h1>AccountsRepositoryInMemory.java</h1><pre class="source lang-java linenums">package com.db.awmd.challenge.repository;
+
+import com.db.awmd.challenge.domain.Account;
+import com.db.awmd.challenge.exception.DuplicateAccountIdException;
+import com.db.awmd.challenge.exception.EmptyDataException;
+import com.db.awmd.challenge.exception.NegativeBalanceException;
+import com.db.awmd.challenge.service.NotificationService;
+
+import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
+
+import java.math.BigDecimal;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.springframework.stereotype.Repository;
+
+@Repository
+<span class="fc" id="L20">@Slf4j</span>
+<span class="fc" id="L21">public class AccountsRepositoryInMemory implements AccountsRepository {</span>
+
+<span class="fc" id="L23">	private static final Map&lt;String, Account&gt; accounts = new ConcurrentHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L25">	private static final Map&lt;String, AtomicReference&lt;BigDecimal&gt;&gt; accountIdToBalanceMap = new ConcurrentHashMap&lt;&gt;();</span>
+
+	@Override
+<span class="fc" id="L28">	@Synchronized</span>
+	public void createAccount(Account account) throws DuplicateAccountIdException {
+<span class="fc" id="L30">		Account previousAccount = accounts.putIfAbsent(account.getAccountId(), account);</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">		if (previousAccount != null) {</span>
+<span class="fc" id="L32">			throw new DuplicateAccountIdException(&quot;Account id &quot; + account.getAccountId() + &quot; already exists!&quot;);</span>
+		}
+
+<span class="fc" id="L35">		AtomicReference&lt;BigDecimal&gt; accountIdBalance = accountIdToBalanceMap.putIfAbsent(account.getAccountId(),</span>
+<span class="fc" id="L36">				new AtomicReference&lt;&gt;(account.getBalance()));</span>
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">		if (accountIdBalance != null) {</span>
+<span class="nc" id="L38">			throw new DuplicateAccountIdException(&quot;Account id &quot; + account.getAccountId() + &quot; already exists!&quot;);</span>
+		}
+
+<span class="fc" id="L41">	}</span>
+
+	@Override
+<span class="fc" id="L44">	@Synchronized</span>
+	public Account getAccount(String accountId) {
+<span class="fc bfc" id="L46" title="All 2 branches covered.">		return (null == accounts.get(accountId) ? null : accounts.get(accountId));</span>
+<span class="nc" id="L47">	}</span>
+
+	@Override
+<span class="fc" id="L50">	@Synchronized</span>
+	public void clearAccounts() {
+<span class="fc" id="L52">		accounts.clear();</span>
+<span class="fc" id="L53">		accountIdToBalanceMap.clear();</span>
+<span class="pc" id="L54">	}</span>
+
+	@Override
+<span class="fc" id="L57">	@Synchronized</span>
+	public void transfer(String fromAccountId, String toAccountId, BigDecimal amount, NotificationService notificationService)
+			throws NegativeBalanceException, EmptyDataException {
+
+<span class="fc" id="L61">		AtomicReference&lt;BigDecimal&gt; fromAccountIdBalance = accountIdToBalanceMap.get(fromAccountId);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">		if (null == fromAccountIdBalance) {</span>
+<span class="fc" id="L63">			throw new EmptyDataException(&quot;Empty Data.&quot;);</span>
+		}
+<span class="fc" id="L65">		log.info(&quot;Retrieved fromAccountId info [{}]&quot;, fromAccountIdBalance);</span>
+<span class="fc" id="L66">		BigDecimal fromAccountIdBalanceRaw = fromAccountIdBalance.get();</span>
+
+<span class="fc bfc" id="L68" title="All 2 branches covered.">		if (fromAccountIdBalanceRaw.subtract(amount).doubleValue() &gt;= 0) {</span>
+<span class="fc" id="L69">			AtomicReference&lt;BigDecimal&gt; toAccountIdBalance = accountIdToBalanceMap.get(toAccountId);</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">			if (null == toAccountIdBalance) {</span>
+<span class="fc" id="L71">				throw new EmptyDataException(&quot;Empty Data.&quot;);</span>
+			}
+<span class="fc" id="L73">			log.info(&quot;Retrieved toAccountIdBalance info [{}]&quot;, toAccountIdBalance);</span>
+<span class="fc" id="L74">			BigDecimal toAccountIdBalanceRawOld = toAccountIdBalance.get();</span>
+<span class="fc" id="L75">			fromAccountIdBalance.compareAndSet(fromAccountIdBalanceRaw, fromAccountIdBalanceRaw.subtract(amount));</span>
+<span class="fc" id="L76">			Account tempFrom = accounts.get(fromAccountId);</span>
+<span class="fc" id="L77">			tempFrom.setBalance(fromAccountIdBalance.get());</span>
+<span class="fc" id="L78">			accounts.put(fromAccountId, tempFrom);</span>
+
+<span class="fc" id="L80">			log.info(&quot;From account balance updated [{}]&quot;, fromAccountIdBalance);</span>
+<span class="fc" id="L81">			notificationService.notifyAboutTransfer(tempFrom, String.format(&quot;Account Id %s has been credited with %f.&quot;, toAccountId, amount.doubleValue()));</span>
+<span class="fc" id="L82">			toAccountIdBalance.compareAndSet(toAccountIdBalanceRawOld, toAccountIdBalanceRawOld.add(amount));</span>
+<span class="fc" id="L83">			Account tempTo = accounts.get(toAccountId);</span>
+<span class="fc" id="L84">			tempTo.setBalance(toAccountIdBalance.get());</span>
+<span class="fc" id="L85">			accounts.put(toAccountId, tempTo);</span>
+<span class="fc" id="L86">			log.info(&quot;To account balance updated [{}]&quot;, toAccountIdBalance);</span>
+<span class="fc" id="L87">			notificationService.notifyAboutTransfer(tempTo, String.format(&quot;Your Account has been credited with %f , the debited account id is %s.&quot;, amount.doubleValue(),fromAccountId));</span>
+<span class="fc" id="L88">			return;</span>
+
+		} else {
+<span class="fc" id="L91">			throw new NegativeBalanceException(</span>
+					&quot;Transfer operation encountered a problem as we do not support overdrafts!&quot;);
+		}
+
+<span class="fc" id="L95">	}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.7.8.201612092310</span></div></body></html>
