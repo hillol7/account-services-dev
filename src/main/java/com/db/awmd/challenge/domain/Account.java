@@ -1,15 +1,13 @@
 package com.db.awmd.challenge.domain;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.Getter;
-import lombok.Setter;
-import lombok.Synchronized;
-
 import org.hibernate.validator.constraints.NotEmpty;
 
 @Data
@@ -17,27 +15,34 @@ public class Account {
 
 	@NotNull
 	@NotEmpty
-	@Getter(onMethod = @__({ @Synchronized }))
-	private final String accountId;
+	@Getter
+	private String accountId = "";
 
 	@NotNull
 	@Min(value = 0, message = "Initial balance must be positive.")
-	@Getter(onMethod = @__({ @Synchronized }))
-	@Setter(onMethod = @__({ @Synchronized }))
-	private BigDecimal balance;
+	@Getter
+	private volatile BigDecimal balance=BigDecimal.valueOf(0);
+	
+	private final Lock lock;
 
 	public Account(String accountId) {
-		synchronized ($lock) {
-			this.accountId = accountId;
-			this.balance = BigDecimal.ZERO;
+
+		this.accountId = accountId;
+		this.balance = BigDecimal.ZERO;
+		this.lock = new ReentrantLock();
 		}
+	
+
+	public Account(String accountId, BigDecimal balance) {
+
+		this.accountId = accountId;
+		this.balance = balance;
+		this.lock = new ReentrantLock();
+
+
 	}
 
-	@JsonCreator
-	public Account(@JsonProperty("accountId") String accountId, @JsonProperty("balance") BigDecimal balance) {
-		synchronized ($lock) {
-			this.accountId = accountId;
-			this.balance = balance;
-		}
+	public int compare(Account object) {
+		return this.accountId.compareTo(object.accountId);
 	}
 }

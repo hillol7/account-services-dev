@@ -1,6 +1,7 @@
 package com.db.awmd.challenge.repository;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import com.db.awmd.challenge.domain.Account;
 import com.db.awmd.challenge.exception.DuplicateAccountIdException;
@@ -10,11 +11,13 @@ import com.db.awmd.challenge.service.NotificationService;
 
 public interface AccountsRepository {
 
-	void createAccount(Account account) throws DuplicateAccountIdException;
+	Account createAccount(Account account) throws DuplicateAccountIdException;
 
 	Account getAccount(String accountId);
 
 	void clearAccounts();
+	
+	List<Account> getAllAccounts();
 
-	void transfer(String fromAccountId, String toAccountId, BigDecimal ammount, NotificationService notificationService) throws NegativeBalanceException, EmptyDataException;
+	boolean transfer(Account fromAccount, Account toAccount, BigDecimal ammount, NotificationService notificationService) throws NegativeBalanceException, EmptyDataException;
 }
