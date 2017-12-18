@@ -51,13 +51,13 @@ ID-1
 ```
 ***Sample Error Response - 404 Bad Request***   
 ```json
-{
+
  {
     "uuid": "2f315e99-9081-4fec-b08c-7f890c8523e4",
     "data": null,
     "errors": null
 }
-}
+
 
 ```
 ***POST End point*** 
